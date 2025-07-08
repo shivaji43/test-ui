@@ -1,13 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Loader2, Play } from "lucide-react"
+import { Loader2, Play, Moon, Sun } from "lucide-react"
 import type { GenerationType } from "@/app/page"
+import { useTheme } from "next-themes"
 
 interface ChatPanelProps {
   onGenerate: (type: GenerationType, model: string, systemPrompt: string, userPrompt: string) => Promise<void>
@@ -19,8 +20,16 @@ export function ChatPanel({ onGenerate }: ChatPanelProps) {
   const [systemPrompt, setSystemPrompt] = useState("")
   const [userPrompt, setUserPrompt] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const { theme, setTheme } = useTheme()
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const generationTypes = [
+    { value: "triage", label: "Triage Agent" },
     { value: "script", label: "Script Generation" },
     { value: "image", label: "Image Generation" },
     { value: "video", label: "Video Generation" },
@@ -28,6 +37,7 @@ export function ChatPanel({ onGenerate }: ChatPanelProps) {
   ]
 
   const modelOptions = {
+    triage: [{ value: "triage-agent", label: "Triage Agent" }],
     script: [
       { value: "openai-gpt4", label: "OpenAI GPT-4" },
       { value: "openai-gpt3.5", label: "OpenAI GPT-3.5" },
@@ -65,6 +75,14 @@ export function ChatPanel({ onGenerate }: ChatPanelProps) {
 
   const getDefaultSystemPrompt = (type: GenerationType) => {
     switch (type) {
+      case "triage":
+        return `You are a content style selector. Based on the user's request, you need to determine which content style agent is most appropriate.
+    Here are the available styles and when to use them:
+    - 'Hype Style Agent': Use when the user wants something to sound exciting, generate buzz, or create urgency.
+    - 'Ad Style Agent': Use when the user wants short, persuasive copy for an advertisement, focusing on benefits.
+    - 'Launch Style Agent': Use when the user wants an announcement for a new product, service, or major event.
+    - 'Talking Head Agent': Use when the user wants a script for a video where a person speaks directly to the camera, focusing on explanation and a conversational tone.
+    Your task is to analyze the user's prompt and hand off to the most suitable agent`
       case "script":
         return "You are a professional scriptwriter. Create engaging, well-structured scripts with clear scene descriptions, dialogue, and narrative flow."
       case "image":
@@ -82,6 +100,11 @@ export function ChatPanel({ onGenerate }: ChatPanelProps) {
     setGenerationType(type)
     setSelectedModel("")
     setSystemPrompt(getDefaultSystemPrompt(type))
+
+    // Auto-select model for triage agent
+    if (type === "triage") {
+      setSelectedModel("triage-agent")
+    }
   }
 
   const handleGenerate = async () => {
@@ -95,13 +118,30 @@ export function ChatPanel({ onGenerate }: ChatPanelProps) {
     }
   }
 
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark")
+  }
+
   const canGenerate = generationType && selectedModel && userPrompt.trim() && !isGenerating
+
+  if (!mounted) {
+    return null
+  }
 
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 border-b">
-        <h2 className="text-lg font-semibold">AI Generation Studio</h2>
-        <p className="text-sm text-muted-foreground">Create content with AI models</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">AI Generation Studio</h2>
+            <p className="text-sm text-muted-foreground">Create content with AI models</p>
+          </div>
+          <Button variant="outline" size="icon" onClick={toggleTheme}>
+            <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <span className="sr-only">Toggle theme</span>
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -126,7 +166,7 @@ export function ChatPanel({ onGenerate }: ChatPanelProps) {
               </Select>
             </div>
 
-            {generationType && (
+            {generationType && generationType !== "triage" && (
               <div className="space-y-2">
                 <Label>Model</Label>
                 <Select value={selectedModel} onValueChange={setSelectedModel}>

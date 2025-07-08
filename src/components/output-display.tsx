@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, FileText, ImageIcon, Video, Mic, Play, Pause, Copy, Download } from "lucide-react"
+import { Loader2, FileText, ImageIcon, Video, Mic, Play, Pause, Copy, Download, Brain } from "lucide-react"
 import type { GenerationResult } from "@/app/page"
 
 interface OutputDisplayProps {
@@ -18,6 +18,8 @@ export function OutputDisplay({ results }: OutputDisplayProps) {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
+      case "triage":
+        return <Brain className="w-5 h-5" />
       case "script":
         return <FileText className="w-5 h-5" />
       case "image":
@@ -33,6 +35,8 @@ export function OutputDisplay({ results }: OutputDisplayProps) {
 
   const getTypeColor = (type: string) => {
     switch (type) {
+      case "triage":
+        return "bg-indigo-500"
       case "script":
         return "bg-blue-500"
       case "image":
@@ -92,7 +96,9 @@ export function OutputDisplay({ results }: OutputDisplayProps) {
                       {getTypeIcon(result.type)}
                     </div>
                     <div>
-                      <CardTitle className="text-base capitalize">{result.type} Generation</CardTitle>
+                      <CardTitle className="text-base capitalize">
+                        {result.type} {result.type === "triage" ? "Analysis" : "Generation"}
+                      </CardTitle>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant="outline">{result.model}</Badge>
                         <span className="text-xs text-muted-foreground">{result.timestamp.toLocaleTimeString()}</span>
@@ -119,15 +125,29 @@ export function OutputDisplay({ results }: OutputDisplayProps) {
                 {result.isGenerating ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                    <span className="text-sm text-muted-foreground">Generating {result.type}...</span>
+                    <span className="text-sm text-muted-foreground">
+                      {result.type === "triage" ? "Analyzing request..." : `Generating ${result.type}...`}
+                    </span>
                   </div>
                 ) : result.result ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-medium">Generated Result:</h4>
+                      <h4 className="font-medium">
+                        {result.type === "triage" ? "Analysis Result:" : "Generated Result:"}
+                      </h4>
                       <div className="flex gap-2">
-                        {result.type === "script" && (
-                          <Button size="sm" variant="outline" onClick={() => copyToClipboard(result.result)}>
+                        {(result.type === "script" || result.type === "triage") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              copyToClipboard(
+                                typeof result.result === "string"
+                                  ? result.result
+                                  : JSON.stringify(result.result, null, 2),
+                              )
+                            }
+                          >
                             <Copy className="w-4 h-4 mr-1" />
                             Copy
                           </Button>
@@ -138,6 +158,64 @@ export function OutputDisplay({ results }: OutputDisplayProps) {
                         </Button>
                       </div>
                     </div>
+
+                    {result.type === "triage" && (
+                      <div className="space-y-4">
+                        <div className="bg-background p-4 rounded-lg border">
+                          <h5 className="font-medium mb-3 flex items-center gap-2">
+                            <Brain className="w-4 h-4" />
+                            Triage Analysis
+                          </h5>
+                          {typeof result.result === "object" ? (
+                            <div className="space-y-3">
+                              {result.result.recommendedAgent && (
+                                <div>
+                                  <p className="text-sm font-medium text-green-600 mb-1">Recommended Agent:</p>
+                                  <Badge variant="secondary" className="capitalize">
+                                    {result.result.recommendedAgent}
+                                  </Badge>
+                                </div>
+                              )}
+                              {result.result.confidence && (
+                                <div>
+                                  <p className="text-sm font-medium mb-1">Confidence:</p>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 bg-muted rounded-full h-2">
+                                      <div
+                                        className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                        style={{ width: `${result.result.confidence}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-sm text-muted-foreground">{result.result.confidence}%</span>
+                                  </div>
+                                </div>
+                              )}
+                              {result.result.reasoning && (
+                                <div>
+                                  <p className="text-sm font-medium mb-1">Reasoning:</p>
+                                  <p className="text-sm text-muted-foreground">{result.result.reasoning}</p>
+                                </div>
+                              )}
+                              {result.result.suggestions && (
+                                <div>
+                                  <p className="text-sm font-medium mb-2">Suggestions:</p>
+                                  <ul className="text-sm text-muted-foreground space-y-1">
+                                    {result.result.suggestions.map((suggestion: string, index: number) => (
+                                      <li key={index} className="flex items-start gap-2">
+                                        <span className="text-primary">•</span>
+                                        {suggestion}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <pre className="whitespace-pre-wrap text-sm font-mono">{result.result}</pre>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {result.type === "script" && (
                       <div className="bg-background p-4 rounded-lg border max-h-96 overflow-y-auto">

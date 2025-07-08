@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ChatPanel } from "@/components/chat-panel"
 import { OutputDisplay } from "@/components/output-display"
 
-export type GenerationType = "script" | "image" | "video" | "voice"
+export type GenerationType = "triage" | "script" | "image" | "video" | "voice"
 
 export interface GenerationResult {
   id: string
@@ -44,17 +44,53 @@ export default function VideoGenerationApp() {
 
     setResults((prev) => [newResult, ...prev])
 
-    // Simulate generation
-    await new Promise((resolve) => setTimeout(resolve, 2000 + Math.random() * 3000))
+    try {
+      let mockResult
 
-    // Generate mock result
-    const mockResult = generateMockResult(type, model, userPrompt)
+      if (type === "triage") {
+        // Call the triage API
+        const response = await fetch("/api/agent", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            systemPrompt: systemPrompt,
+            message: userPrompt,
+          }),
+        })
 
-    setResults((prev) =>
-      prev.map((result) =>
-        result.id === newResult.id ? { ...result, result: mockResult, isGenerating: false } : result,
-      ),
-    )
+        if (!response.ok) {
+          throw new Error("Failed to call triage API")
+        }
+
+        const data = await response.json()
+        mockResult = data.data || data.style || "No recommendation available"
+      } else {
+        // Simulate generation for other types
+        await new Promise((resolve) => setTimeout(resolve, 2000 + Math.random() * 3000))
+        mockResult = generateMockResult(type, model, userPrompt)
+      }
+
+      setResults((prev) =>
+        prev.map((result) =>
+          result.id === newResult.id ? { ...result, result: mockResult, isGenerating: false } : result,
+        ),
+      )
+    } catch (error) {
+      console.error("Generation error:", error)
+      setResults((prev) =>
+        prev.map((result) =>
+          result.id === newResult.id
+            ? {
+                ...result,
+                result: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+                isGenerating: false,
+              }
+            : result,
+        ),
+      )
+    }
   }
 
   const generateMockResult = (type: GenerationType, model: string, prompt: string) => {
@@ -128,7 +164,7 @@ FADE OUT.
       </div>
 
       {/* Chat Panel - Right Side */}
-      <div className="w-96 border-l bg-card overflow-hidden">
+      <div className="w-[600px] border-l bg-card overflow-hidden">
         <ChatPanel onGenerate={handleGenerate} />
       </div>
     </div>
